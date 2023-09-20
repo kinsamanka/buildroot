@@ -4,10 +4,17 @@ choice
 	prompt "GCC compiler Version"
 	default BR2_GCC_VERSION_ARC if BR2_GCC_VERSION_4_8_ARC # legacy
 	default BR2_GCC_VERSION_ARC if BR2_arc
+	default BR2_GCC_VERSION_RISCV if BR2_riscv
 	default BR2_GCC_VERSION_POWERPC_SPE if BR2_powerpc_SPE
 	default BR2_GCC_VERSION_12_X
 	help
 	  Select the version of gcc you wish to use.
+
+config BR2_GCC_VERSION_RISCV
+	bool "gcc rvv-0.7.1 (9.2.0)"
+	# Only supported architecture
+	depends on BR2_riscv
+	select BR2_TOOLCHAIN_GCC_AT_LEAST_9
 
 config BR2_GCC_VERSION_ARC
 	bool "gcc arc (10.x)"
@@ -81,6 +88,7 @@ config BR2_GCC_VERSION
 	default "11.4.0"    if BR2_GCC_VERSION_11_X
 	default "12.3.0"    if BR2_GCC_VERSION_12_X
 	default "13.2.0"    if BR2_GCC_VERSION_13_X
+	default "9.2.0"     if BR2_GCC_VERSION_RISCV
 	default "arc-2020.09-release" if BR2_GCC_VERSION_ARC
 
 config BR2_EXTRA_GCC_CONFIG_OPTIONS
