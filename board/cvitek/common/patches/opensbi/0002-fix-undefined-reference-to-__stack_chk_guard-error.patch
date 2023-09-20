@@ -1,0 +1,26 @@
+From f7430da36bba0f62977870f238327a228d90c7a7 Mon Sep 17 00:00:00 2001
+From: GP Orcullo <kinsamanka@gmail.com>
+Date: Mon, 18 Sep 2023 12:55:33 +0800
+Subject: [PATCH 2/2] fix undefined reference to '__stack_chk_guard' error    
+ This is due to the gcc compiler used
+
+---
+ platform/generic/config.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/platform/generic/config.mk b/platform/generic/config.mk
+index 6e09f33..1b117d2 100644
+--- a/platform/generic/config.mk
++++ b/platform/generic/config.mk
+@@ -9,7 +9,7 @@
+ 
+ # Compiler flags
+ platform-cppflags-y =
+-platform-cflags-y =
++platform-cflags-y = -fno-stack-protector
+ platform-asflags-y =
+ platform-ldflags-y =
+ 
+-- 
+2.25.1
+
