@@ -1,0 +1,188 @@
+From d050150d37c865a407f40b08afd80abb41a6b814 Mon Sep 17 00:00:00 2001
+From: "sam.xiang" <sam.xiang@sophgo.com>
+Date: Tue, 23 May 2023 23:23:54 +0800
+Subject: [PATCH 4/5] uboot: weekly update 2023-05-22 1. usb support dwc2 2.
+ recalculate dsi_timing table
+
+Change-Id: I0d2b9ae942ede724c30eb715a35ab3f6276a2c81
+---
+ drivers/usb/host/Kconfig       |  6 ++++++
+ drivers/usb/host/dwc2.c        | 39 ++++++++++++++++++++++------------
+ drivers/usb/host/dwc2.h        |  2 ++
+ drivers/video/cvitek/dsi_phy.c |  8 +++----
+ 4 files changed, 38 insertions(+), 17 deletions(-)
+
+diff --git a/drivers/usb/host/Kconfig b/drivers/usb/host/Kconfig
+index 427b360a..bb7af0bb 100644
+--- a/drivers/usb/host/Kconfig
++++ b/drivers/usb/host/Kconfig
+@@ -308,6 +308,12 @@ config USB_DWC2_BUFFER_SIZE
+ 	  that size it is possible to shrink it. Smaller sizes should be fine
+ 	  because larger transactions could be split in smaller ones.
+ 
++config USB_DWC2_REG_ADDR
++	hex "dwc2 register address"
++	default 0x4340000
++	---help---
++	  set usb dwc2 register address
++
+ endif # USB_DWC2
+ 
+ config USB_R8A66597_HCD
+diff --git a/drivers/usb/host/dwc2.c b/drivers/usb/host/dwc2.c
+index 43cc2e04..967f0791 100644
+--- a/drivers/usb/host/dwc2.c
++++ b/drivers/usb/host/dwc2.c
+@@ -159,6 +159,7 @@ static void dwc_otg_core_reset(struct udevice *dev,
+ 			       struct dwc2_core_regs *regs)
+ {
+ 	int ret;
++	uint32_t snpsid, greset;
+ 
+ 	/* Wait for AHB master IDLE state. */
+ 	ret = wait_for_bit_le32(&regs->grstctl, DWC2_GRSTCTL_AHBIDLE,
+@@ -167,9 +168,19 @@ static void dwc_otg_core_reset(struct udevice *dev,
+ 		dev_info(dev, "%s: Timeout!\n", __func__);
+ 
+ 	/* Core Soft Reset */
++	snpsid = readl(&regs->gsnpsid);
+ 	writel(DWC2_GRSTCTL_CSFTRST, &regs->grstctl);
+-	ret = wait_for_bit_le32(&regs->grstctl, DWC2_GRSTCTL_CSFTRST,
+-				false, 1000, false);
++	if ((snpsid & DWC2_SNPSID_DEVID_MASK) < DWC2_SNPSID_DEVID_VER_4xx) {
++		ret = wait_for_bit_le32(&regs->grstctl, DWC2_GRSTCTL_CSFTRST,
++					false, 1000, false);
++	} else {
++		ret = wait_for_bit_le32(&regs->grstctl, DWC2_GRSTCTL_GSFTRST_DONE,
++					true, 1000, false);
++		greset = readl(&regs->grstctl);
++		greset &= ~DWC2_GRSTCTL_CSFTRST;
++		greset |= DWC2_GRSTCTL_GSFTRST_DONE;
++		writel(greset, &regs->grstctl);
++	}
+ 	if (ret)
+ 		dev_info(dev, "%s: Timeout!\n", __func__);
+ 
+@@ -440,8 +451,9 @@ static void dwc_otg_core_init(struct udevice *dev)
+ 		usbcfg |= DWC2_GUSBCFG_ULPI_CLK_SUS_M;
+ 	}
+ #endif
+-	if (priv->hnp_srp_disable)
+-		usbcfg |= DWC2_GUSBCFG_FORCEHOSTMODE;
++	// if (priv->hnp_srp_disable)
++	usbcfg &= ~DWC2_GUSBCFG_FORCEDEVMODE;
++	usbcfg |= DWC2_GUSBCFG_FORCEHOSTMODE;
+ 
+ 	writel(usbcfg, &regs->gusbcfg);
+ 
+@@ -1179,7 +1191,7 @@ static int dwc2_reset(struct udevice *dev)
+ static int dwc2_init_common(struct udevice *dev, struct dwc2_priv *priv)
+ {
+ 	struct dwc2_core_regs *regs = priv->regs;
+-	uint32_t snpsid;
++	uint32_t snpsid, val;
+ 	int i, j;
+ 	int ret;
+ 
+@@ -1192,7 +1204,8 @@ static int dwc2_init_common(struct udevice *dev, struct dwc2_priv *priv)
+ 		 snpsid >> 12 & 0xf, snpsid & 0xfff);
+ 
+ 	if ((snpsid & DWC2_SNPSID_DEVID_MASK) != DWC2_SNPSID_DEVID_VER_2xx &&
+-	    (snpsid & DWC2_SNPSID_DEVID_MASK) != DWC2_SNPSID_DEVID_VER_3xx) {
++	    (snpsid & DWC2_SNPSID_DEVID_MASK) != DWC2_SNPSID_DEVID_VER_3xx &&
++	    (snpsid & DWC2_SNPSID_DEVID_MASK) != DWC2_SNPSID_DEVID_VER_4xx) {
+ 		dev_info(dev, "SNPSID invalid (not DWC2 OTG device): %08x\n",
+ 			 snpsid);
+ 		return -ENODEV;
+@@ -1204,14 +1217,13 @@ static int dwc2_init_common(struct udevice *dev, struct dwc2_priv *priv)
+ 	priv->ext_vbus = 0;
+ #endif
+ 
+-	dwc_otg_core_init(dev);
++	val = readl((void *)REG_TOP_USB_PHY_CTRL);
++	val &= ~0xC0;
++	val |= 0x40;
++	writel(val, (void *)REG_TOP_USB_PHY_CTRL);
+ 
+-	if (usb_get_dr_mode(dev_ofnode(dev)) == USB_DR_MODE_PERIPHERAL) {
+-		dev_dbg(dev, "USB device %s dr_mode set to %d. Skipping host_init.\n",
+-			dev->name, usb_get_dr_mode(dev_ofnode(dev)));
+-	} else {
+-		dwc_otg_core_host_init(dev, regs);
+-	}
++	dwc_otg_core_init(dev);
++	dwc_otg_core_host_init(dev, regs);
+ 
+ 	clrsetbits_le32(&regs->hprt0, DWC2_HPRT0_PRTENA |
+ 			DWC2_HPRT0_PRTCONNDET | DWC2_HPRT0_PRTENCHNG |
+@@ -1473,6 +1485,7 @@ static const struct udevice_id dwc2_usb_ids[] = {
+ 	{ .compatible = "brcm,bcm2835-usb" },
+ 	{ .compatible = "brcm,bcm2708-usb" },
+ 	{ .compatible = "snps,dwc2" },
++	{ .compatible = "cvitek,cv182x-usb" },
+ 	{ }
+ };
+ 
+diff --git a/drivers/usb/host/dwc2.h b/drivers/usb/host/dwc2.h
+index 97a06c48..21adc391 100644
+--- a/drivers/usb/host/dwc2.h
++++ b/drivers/usb/host/dwc2.h
+@@ -207,6 +207,7 @@ struct dwc2_core_regs {
+ #define DWC2_GRSTCTL_TXFFLSH_OFFSET			5
+ #define DWC2_GRSTCTL_TXFNUM_MASK			(0x1F << 6)
+ #define DWC2_GRSTCTL_TXFNUM_OFFSET			6
++#define DWC2_GRSTCTL_GSFTRST_DONE			(1 << 29)
+ #define DWC2_GRSTCTL_DMAREQ				(1 << 30)
+ #define DWC2_GRSTCTL_DMAREQ_OFFSET			30
+ #define DWC2_GRSTCTL_AHBIDLE				(1 << 31)
+@@ -735,6 +736,7 @@ struct dwc2_core_regs {
+ #define DWC2_PCGCCTL_DEEP_SLEEP_OFFSET			7
+ #define DWC2_SNPSID_DEVID_VER_2xx			(0x4f542 << 12)
+ #define DWC2_SNPSID_DEVID_VER_3xx			(0x4f543 << 12)
++#define DWC2_SNPSID_DEVID_VER_4xx			(0x4f544 << 12)
+ #define DWC2_SNPSID_DEVID_MASK				(0xfffff << 12)
+ #define DWC2_SNPSID_DEVID_OFFSET			12
+ 
+diff --git a/drivers/video/cvitek/dsi_phy.c b/drivers/video/cvitek/dsi_phy.c
+index b034c024..737e02ae 100644
+--- a/drivers/video/cvitek/dsi_phy.c
++++ b/drivers/video/cvitek/dsi_phy.c
+@@ -112,7 +112,7 @@ int ilog2(int x)
+ 	return result;
+ }
+ 
+-void _cal_pll_reg(u32 clkkHz, u32 VCOR_10000, u32 *reg_txpll, u32 *reg_set)
++void _cal_pll_reg(u32 clkkHz, u32 VCOR_10000, u32 *reg_txpll, u32 *reg_set, u32 factor)
+ {
+ 	u8 gain = 1 << ilog2(max((u32)1, (u32)(25000000UL / VCOR_10000)));
+ 	u32 VCOC_1000 = VCOR_10000 * gain / 10;
+@@ -121,7 +121,7 @@ void _cal_pll_reg(u32 clkkHz, u32 VCOR_10000, u32 *reg_txpll, u32 *reg_set)
+ 	u8 reg_divout_sel = min((u8)3, dig_dig);
+ 	u8 reg_div_sel = dig_dig - reg_divout_sel;
+ 	u8 loop_gain = (((VCOC_1000 / 266000) + 7) >> 3) << 3;
+-	*reg_set = ((u64)(1200000 * loop_gain) << 26) / VCOC_1000;
++	*reg_set = ((u64)(factor * loop_gain) << 26) / VCOC_1000;
+ 
+ 	*reg_txpll = (reg_div_sel << 10) | (reg_divout_sel << 8) | reg_disp_div_sel;
+ 
+@@ -137,7 +137,7 @@ void dphy_lvds_set_pll(u32 clkkHz, u8 link)
+ 	u32 VCOR_10000 = clkkHz * 70 / link;
+ 	u32 reg_txpll, reg_set;
+ 
+-	_cal_pll_reg(clkkHz, VCOR_10000, &reg_txpll, &reg_set);
++	_cal_pll_reg(clkkHz, VCOR_10000, &reg_txpll, &reg_set, 1200000);
+ 
+ 	_reg_write_mask(reg_base + REG_DSI_PHY_TXPLL, 0x7ff, reg_txpll);
+ 	_reg_write(reg_base + REG_DSI_PHY_REG_SET, reg_set);
+@@ -148,7 +148,7 @@ void dphy_dsi_set_pll(u32 clkkHz, u8 lane, u8 bits)
+ 	u32 VCOR_10000 = clkkHz * bits * 10 / lane;
+ 	u32 reg_txpll, reg_set;
+ 
+-	_cal_pll_reg(clkkHz, VCOR_10000, &reg_txpll, &reg_set);
++	_cal_pll_reg(clkkHz, VCOR_10000, &reg_txpll, &reg_set, 900000);
+ 
+ 	_reg_write_mask(reg_base + REG_DSI_PHY_TXPLL, 0x7ff, reg_txpll);
+ 	_reg_write(reg_base + REG_DSI_PHY_REG_SET, reg_set);
+-- 
+2.25.1
+
