@@ -1,0 +1,35 @@
+--- a/src/string/riscv64/memcpy.c 2023-09-17 02:03:38.218234442 +0000
++++ b/src/string/riscv64/memcpy.c 2023-09-23 06:58:21.931224746 +0000
+@@ -0,0 +1,32 @@
++#include <string.h>
++#include <stdint.h>
++#include <endian.h>
++
++/* 
++ * optimized code for riscv64 rvv 0.7.1
++ *
++ * taken from:
++ *     https://www.reddit.com/r/RISCV/comments/12hlkuh/comment/jfrs2re
++ */
++
++void *memcpy(void *restrict dest, const void *restrict src, size_t n)
++{
++       unsigned char *d = dest;
++       const unsigned char *s = src;
++
++       do {
++               size_t vl;
++               __asm__ ("vsetvli %[vl], %[n], e8,m4 \n"
++                    "vlbu.v v0, (%[s]) \n"
++                    "vsb.v v0, (%[d])"
++                    : [vl] "=r" (vl)
++                    : [s] "r" (s),
++                      [d] "r" (d),
++                      [n] "r" (n));
++               n -= vl;
++               s += vl;
++               d += vl;
++       } while (n != 0);
++
++       return dest;
++}
