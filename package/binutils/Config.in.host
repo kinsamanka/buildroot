@@ -40,7 +40,7 @@ endchoice
 config BR2_BINUTILS_VERSION
 	string
 	default "arc-2020.09-release"	if BR2_BINUTILS_VERSION_ARC
-	default "rvv-0.1.7"	if BR2_BINUTILS_VERSION_RISCV
+	default "rvv-0.7.1"	if BR2_BINUTILS_VERSION_RISCV
 	default "2.39"		if BR2_BINUTILS_VERSION_2_39_X
 	default "2.40"		if BR2_BINUTILS_VERSION_2_40_X
 	default "2.41"		if BR2_BINUTILS_VERSION_2_41_X
