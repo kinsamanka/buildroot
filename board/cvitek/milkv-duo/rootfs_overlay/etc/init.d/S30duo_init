@@ -1,0 +1,74 @@
+#!/bin/sh -e
+
+CONFIG=/etc/usb.conf
+
+source $CONFIG
+
+echo "Setting up MilkV Duo..."
+
+setup_rndis() {
+    mkdir ${BASE_DIR}
+    mount none ${BASE_DIR} -t configfs
+    mkdir -p ${BASE_DIR}/usb_gadget/cvitek
+    cd ${BASE_DIR}/usb_gadget/cvitek
+    echo $VID > idVendor
+    echo $PID > idProduct
+    mkdir strings/0x409
+    echo $MANUFACTURER > strings/0x409/manufacturer
+    echo $PRODUCT > strings/0x409/product
+    echo $SERIAL > strings/0x409/serialnumber
+    mkdir configs/c.1
+    mkdir configs/c.1/strings/0x409
+    echo "config1" > configs/c.1/strings/0x409/configuration
+    echo 120 > configs/c.1/MaxPower
+    mkdir functions/rndis.usb0
+    echo 1 > os_desc/use
+    echo 0xcd > os_desc/b_vendor_code
+    echo MSFT100 > os_desc/qw_sign
+    echo RNDIS > functions/rndis.usb0/os_desc/interface.rndis/compatible_id
+    ln -s configs/c.1 os_desc
+    mkdir functions/rndis.usb0/os_desc/interface.rndis/Icons
+    echo 2 > functions/rndis.usb0/os_desc/interface.rndis/Icons/type
+    echo "%SystemRoot%\\system32\\shell32.dll,-233" > \
+        functions/rndis.usb0/os_desc/interface.rndis/Icons/data
+    mkdir functions/rndis.usb0/os_desc/interface.rndis/Label
+    echo 1 > functions/rndis.usb0/os_desc/interface.rndis/Label/type
+    echo "XYZ Device" > functions/rndis.usb0/os_desc/interface.rndis/Label/data
+}
+
+start () {
+    # Set Pin-29(PWR_SEQ2) to GPIO
+    devmem 0x0502707c 32 0x111
+    devmem 0x03001068 32 0x3
+
+    # Set Pin-19(SD0_PWR_EN) to GPIO
+    cvi_pinmux -w SD0_PWR_EN/XGPIOA_14 > /dev/null
+
+    echo "Setting up USB..."
+    case "$MODE" in
+        device)
+            echo device > /proc/cviusb/otg_role
+            setup_rndis
+            echo "Starting RNDIS"
+            ln -s ${BASE_DIR}/usb_gadget/cvitek/functions/rndis.usb0 \
+                ${BASE_DIR}/usb_gadget/cvitek/configs/c.1
+            UDC=`ls /sys/class/udc/ | awk '{print $1}'`
+            echo ${UDC} > ${BASE_DIR}/usb_gadget/cvitek/UDC
+            ;;
+        host)
+            echo host > /proc/cviusb/otg_role
+            ;;
+    esac
+}
+
+case "$1" in
+  start)
+        start
+        ;;
+  stop)
+        # do nothing
+        ;;
+  *)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+esac
