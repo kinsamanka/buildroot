@@ -1,0 +1,43 @@
+From 61774a0b66949ebd51719affa6ca24f843d7029c Mon Sep 17 00:00:00 2001
+From: "sam.xiang" <sam.xiang@sophgo.com>
+Date: Tue, 21 Feb 2023 20:43:18 +0800
+Subject: [PATCH 1/2] [opensbi] porting: adapt to CV180X / CV181X
+
+Change-Id: Id7b3c64d203eb2c9af6c66f195bf0d8a05f0164c
+---
+ lib/utils/serial/fdt_serial_uart8250.c | 1 +
+ platform/generic/config.mk             | 3 ++-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+ mode change 100644 => 100755 lib/utils/serial/fdt_serial_uart8250.c
+
+diff --git a/lib/utils/serial/fdt_serial_uart8250.c b/lib/utils/serial/fdt_serial_uart8250.c
+old mode 100644
+new mode 100755
+index 918193a..c72eeeb
+--- a/lib/utils/serial/fdt_serial_uart8250.c
++++ b/lib/utils/serial/fdt_serial_uart8250.c
+@@ -26,6 +26,7 @@ static int serial_uart8250_init(void *fdt, int nodeoff,
+ }
+ 
+ static const struct fdt_match serial_uart8250_match[] = {
++	{ .compatible = "snps,dw-apb-uart" },
+ 	{ .compatible = "ns16550" },
+ 	{ .compatible = "ns16550a" },
+ 	{ },
+diff --git a/platform/generic/config.mk b/platform/generic/config.mk
+index 8151974..6e09f33 100644
+--- a/platform/generic/config.mk
++++ b/platform/generic/config.mk
+@@ -28,7 +28,8 @@ else
+   # This needs to be 2MB aligned for 64-bit system
+   FW_JUMP_ADDR=$(shell printf "0x%X" $$(($(FW_TEXT_START) + 0x200000)))
+ endif
+-FW_JUMP_FDT_ADDR=$(shell printf "0x%X" $$(($(FW_TEXT_START) + 0x2200000)))
++#set FDT_ADDR 0xB0000000
++FW_JUMP_FDT_ADDR=$(shell printf "0x%X" $$(($(FW_TEXT_START) + 0x30000000)))
+ FW_PAYLOAD=y
+ ifeq ($(PLATFORM_RISCV_XLEN), 32)
+   # This needs to be 4MB aligned for 32-bit system
+-- 
+2.25.1
+

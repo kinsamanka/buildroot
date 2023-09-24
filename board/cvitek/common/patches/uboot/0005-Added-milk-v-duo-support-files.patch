@@ -1,0 +1,271 @@
+From 70b90933a384d67a725bc25385ed4d040da80a82 Mon Sep 17 00:00:00 2001
+From: GP Orcullo <kinsamanka@gmail.com>
+Date: Sat, 16 Sep 2023 20:16:18 +0800
+Subject: [PATCH 5/5] Added milk-v duo support files
+
+---
+ .gitignore                             |  9 ----
+ arch/riscv/dts/.gitignore              |  1 -
+ board/cvitek/cvi_board_init.c          | 45 ++++++++++++++++
+ configs/cv1800b-milkv-duo-sd_defconfig | 74 ++++++++++++++++++++++++++
+ include/cvi_board_memmap.h             | 35 ++++++++++++
+ include/cvipart.h                      | 12 +++++
+ include/cvitek/cvitek.h                | 13 +++++
+ include/imgs.h                         |  4 ++
+ 8 files changed, 183 insertions(+), 10 deletions(-)
+ delete mode 100644 arch/riscv/dts/.gitignore
+ create mode 100644 board/cvitek/cvi_board_init.c
+ create mode 100644 configs/cv1800b-milkv-duo-sd_defconfig
+ create mode 100644 include/cvi_board_memmap.h
+ create mode 100644 include/cvipart.h
+ create mode 100644 include/cvitek/cvitek.h
+ create mode 100644 include/imgs.h
+
+diff --git a/.gitignore b/.gitignore
+index e58649e3..e66aa864 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -95,12 +95,3 @@ GTAGS
+ 
+ # Python cache
+ __pycache__
+-
+-# cvitek auto-generated files
+-/include/cvitek/cvitek.h
+-/include/cvipart.h
+-/include/imgs.h
+-/include/cvi_board_memmap.h
+-tags
+-build
+-board/cvitek/cvi_board_init.c
+diff --git a/arch/riscv/dts/.gitignore b/arch/riscv/dts/.gitignore
+deleted file mode 100644
+index 6d6371a5..00000000
+--- a/arch/riscv/dts/.gitignore
++++ /dev/null
+@@ -1 +0,0 @@
+-cv18*
+diff --git a/board/cvitek/cvi_board_init.c b/board/cvitek/cvi_board_init.c
+new file mode 100644
+index 00000000..74941cb0
+--- /dev/null
++++ b/board/cvitek/cvi_board_init.c
+@@ -0,0 +1,45 @@
++int cvi_board_init(void)
++{
++	// sensor mclk reset
++	PINMUX_CONFIG(PAD_MIPIRX0P, CAM_MCLK0); // Camera MCLK0
++	PINMUX_CONFIG(PAD_MIPIRX1N, XGPIOC_8);  // Camera Reset
++
++	// all default gpio
++	PINMUX_CONFIG(SD0_PWR_EN, XGPIOA_14);    // Duo Pin 19
++	PINMUX_CONFIG(SPK_EN, XGPIOA_15);        // Duo Pin 20
++	PINMUX_CONFIG(SPINOR_MISO, XGPIOA_23);   // Duo Pin 21
++	PINMUX_CONFIG(SPINOR_CS_X, XGPIOA_24);   // Duo Pin 22
++	PINMUX_CONFIG(SPINOR_SCK, XGPIOA_22);    // Duo Pin 24
++	PINMUX_CONFIG(SPINOR_MOSI, XGPIOA_25);   // Duo Pin 25
++	PINMUX_CONFIG(SPINOR_WP_X, XGPIOA_27);   // Duo Pin 26
++	PINMUX_CONFIG(SPINOR_HOLD_X, XGPIOA_26); // Duo Pin 27
++	PINMUX_CONFIG(PWR_SEQ2, PWR_GPIO_4);     // Duo Pin 29
++
++	// ADC pins set to gpio
++	PINMUX_CONFIG(ADC1, XGPIOB_3);           // ADC1
++	PINMUX_CONFIG(USB_VBUS_DET, XGPIOB_6);   // ADC2
++
++	// I2C0
++	PINMUX_CONFIG(IIC0_SCL, IIC0_SCL);
++	PINMUX_CONFIG(IIC0_SDA, IIC0_SDA);
++
++	// I2C1
++	PINMUX_CONFIG(PAD_MIPIRX1P, IIC1_SDA);
++	PINMUX_CONFIG(PAD_MIPIRX0N, IIC1_SCL);
++
++	// PWM
++	PINMUX_CONFIG(SD1_D2, PWM_5);
++	PINMUX_CONFIG(SD1_D1, PWM_6);
++
++	// UART 4
++	PINMUX_CONFIG(SD1_GPIO1, UART4_TX);
++	PINMUX_CONFIG(SD1_GPIO0, UART4_RX);
++
++	// SPI
++	PINMUX_CONFIG(SD1_CLK, SPI2_SCK);
++	PINMUX_CONFIG(SD1_CMD, SPI2_SDO);
++	PINMUX_CONFIG(SD1_D0, SPI2_SDI);
++	PINMUX_CONFIG(SD1_D3, SPI2_CS_X);
++
++	return 0;
++}
+diff --git a/configs/cv1800b-milkv-duo-sd_defconfig b/configs/cv1800b-milkv-duo-sd_defconfig
+new file mode 100644
+index 00000000..b15f4746
+--- /dev/null
++++ b/configs/cv1800b-milkv-duo-sd_defconfig
+@@ -0,0 +1,74 @@
++CONFIG_RISCV=y
++CONFIG_SYS_MALLOC_F_LEN=0x2000
++CONFIG_NR_DRAM_BANKS=1
++CONFIG_DEFAULT_DEVICE_TREE="cv180x_asic"
++CONFIG_IDENT_STRING="cvitek_cv180x"
++CONFIG_ARCH_RV64I=y
++CONFIG_RISCV_SMODE=y
++CONFIG_TARGET_CVITEK_CV180X=y
++CONFIG_FIT=y
++# CONFIG_FIT_PRINT is not set
++# CONFIG_LEGACY_IMAGE_FORMAT is not set
++# CONFIG_ARCH_FIXUP_FDT_MEMORY is not set
++CONFIG_BOOTDELAY=1
++CONFIG_USE_BOOTCOMMAND=y
++CONFIG_BOOTCOMMAND="run distro_bootcmd"
++CONFIG_HUSH_PARSER=y
++# CONFIG_CMDLINE_EDITING is not set
++# CONFIG_AUTO_COMPLETE is not set
++# CONFIG_SYS_LONGHELP is not set
++CONFIG_SYS_PROMPT="cv180x_c906# "
++# CONFIG_SYS_XTRACE is not set
++# CONFIG_CMD_BDI is not set
++# CONFIG_CMD_CONSOLE is not set
++# CONFIG_CMD_CPU is not set
++# CONFIG_CMD_BOOTD is not set
++# CONFIG_CMD_BOOTI is not set
++# CONFIG_BOOTM_NETBSD is not set
++CONFIG_BOOTM_OPENRTOS=y
++# CONFIG_BOOTM_PLAN9 is not set
++# CONFIG_BOOTM_RTEMS is not set
++# CONFIG_BOOTM_VXWORKS is not set
++# CONFIG_CMD_ELF is not set
++# CONFIG_CMD_FDT is not set
++# CONFIG_CMD_GO is not set
++# CONFIG_CMD_IMI is not set
++# CONFIG_CMD_XIMG is not set
++# CONFIG_CMD_EXPORTENV is not set
++# CONFIG_CMD_IMPORTENV is not set
++# CONFIG_CMD_EDITENV is not set
++# CONFIG_CMD_SAVEENV is not set
++# CONFIG_CMD_ENV_EXISTS is not set
++# CONFIG_CMD_CRC32 is not set
++# CONFIG_CMD_FLASH is not set
++# CONFIG_CMD_LOADB is not set
++# CONFIG_CMD_LOADS is not set
++CONFIG_CMD_MMC=y
++CONFIG_CMD_PART=y
++# CONFIG_CMD_ITEST is not set
++# CONFIG_CMD_SOURCE is not set
++# CONFIG_CMD_SETEXPR is not set
++# CONFIG_CMD_BOOTP is not set
++# CONFIG_CMD_TFTPBOOT is not set
++# CONFIG_CMD_NFS is not set
++# CONFIG_CMD_BLOCK_CACHE is not set
++# CONFIG_CMD_SLEEP is not set
++CONFIG_CMD_FAT=y
++CONFIG_CMD_FS_GENERIC=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_MMC=y
++CONFIG_MMC_SDHCI=y
++CONFIG_MMC_SDHCI_SDMA=y
++CONFIG_MMC_SDHCI_CVITEK=y
++CONFIG_MTD=y
++CONFIG_PHY_CVITEK=y
++CONFIG_DM_ETH=y
++CONFIG_ETH_DESIGNWARE=y
++CONFIG_SYS_NS16550=y
++CONFIG_SPI=y
++CONFIG_FAT_WRITE=y
++# CONFIG_REGEX is not set
++CONFIG_LZMA=y
++# CONFIG_GZIP is not set
++# CONFIG_EFI_LOADER is not set
++# CONFIG_TOOLS_LIBCRYPTO is not set
+diff --git a/include/cvi_board_memmap.h b/include/cvi_board_memmap.h
+new file mode 100644
+index 00000000..d2502889
+--- /dev/null
++++ b/include/cvi_board_memmap.h
+@@ -0,0 +1,35 @@
++#ifndef __BOARD_MMAP__
++#define __BOARD_MMAP__
++
++#define CONFIG_SYS_TEXT_BASE 0x80200000  /* offset 2.0MiB */
++#define CVIMMAP_ATF_SIZE 0x80000  /* 512.0KiB */
++#define CVIMMAP_BOOTLOGO_ADDR 0x83f40000  /* offset 63.25MiB */
++#define CVIMMAP_BOOTLOGO_SIZE 0x0  /* 0.0KiB */
++#define CVIMMAP_CONFIG_SYS_INIT_SP_ADDR 0x82300000  /* offset 35.0MiB */
++#define CVIMMAP_CVI_UPDATE_HEADER_ADDR 0x813ffc00  /* offset 19.9990234375MiB */
++#define CVIMMAP_CVI_UPDATE_HEADER_SIZE 0x400  /* 1.0KiB */
++#define CVIMMAP_DRAM_BASE 0x80000000  /* offset 0.0KiB */
++#define CVIMMAP_DRAM_SIZE 0x4000000  /* 64.0MiB */
++#define CVIMMAP_FREERTOS_ADDR 0x83f40000  /* offset 63.25MiB */
++#define CVIMMAP_FREERTOS_RESERVED_ION_SIZE 0x0  /* 0.0KiB */
++#define CVIMMAP_FREERTOS_SIZE 0xc0000  /* 768.0KiB */
++#define CVIMMAP_FSBL_C906L_START_ADDR 0x83f40000  /* offset 63.25MiB */
++#define CVIMMAP_FSBL_UNZIP_ADDR 0x81400000  /* offset 20.0MiB */
++#define CVIMMAP_FSBL_UNZIP_SIZE 0xf00000  /* 15.0MiB */
++#define CVIMMAP_H26X_BITSTREAM_ADDR 0x83f40000  /* offset 63.25MiB */
++#define CVIMMAP_H26X_BITSTREAM_SIZE 0x0  /* 0.0KiB */
++#define CVIMMAP_H26X_ENC_BUFF_ADDR 0x83f40000  /* offset 63.25MiB */
++#define CVIMMAP_H26X_ENC_BUFF_SIZE 0x0  /* 0.0KiB */
++#define CVIMMAP_ION_ADDR 0x83f40000  /* offset 63.25MiB */
++#define CVIMMAP_ION_SIZE 0x0  /* 0.0KiB */
++#define CVIMMAP_ISP_MEM_BASE_ADDR 0x83f40000  /* offset 63.25MiB */
++#define CVIMMAP_ISP_MEM_BASE_SIZE 0x0  /* 0.0KiB */
++#define CVIMMAP_KERNEL_MEMORY_ADDR 0x80000000  /* offset 0.0KiB */
++#define CVIMMAP_KERNEL_MEMORY_SIZE 0x3f40000  /* 63.25MiB */
++#define CVIMMAP_MONITOR_ADDR 0x80000000  /* offset 0.0KiB */
++#define CVIMMAP_OPENSBI_FDT_ADDR 0x80080000  /* offset 512.0KiB */
++#define CVIMMAP_OPENSBI_SIZE 0x80000  /* 512.0KiB */
++#define CVIMMAP_UIMAG_ADDR 0x81400000  /* offset 20.0MiB */
++#define CVIMMAP_UIMAG_SIZE 0xf00000  /* 15.0MiB */
++
++#endif /* __BOARD_MMAP__ */
+diff --git a/include/cvipart.h b/include/cvipart.h
+new file mode 100644
+index 00000000..edc392a9
+--- /dev/null
++++ b/include/cvipart.h
+@@ -0,0 +1,12 @@
++/* this file should be generated by mkcvipart.py,please do not modify this file manually*/
++
++#ifndef CVIPART_H
++#define CVIPART_H
++#ifndef CONFIG_ENV_IS_NOWHERE
++#define CONFIG_ENV_IS_NOWHERE
++#endif
++#define CONFIG_ENV_SIZE 0x20000
++#define PART_LAYOUT ""
++#define ROOTFS_DEV "/dev/mmcblk0p2"
++#define PARTS_OFFSET ""
++#endif
+\ No newline at end of file
+diff --git a/include/cvitek/cvitek.h b/include/cvitek/cvitek.h
+new file mode 100644
+index 00000000..d515dc25
+--- /dev/null
++++ b/include/cvitek/cvitek.h
+@@ -0,0 +1,13 @@
++/*
++ *VO control GPIOs
++ */
++#define VO_GPIO_RESET_PORT		portb
++#define VO_GPIO_RESET_INDEX		5
++#define VO_GPIO_RESET_ACTIVE	GPIO_ACTIVE_LOW
++#define VO_GPIO_PWM_PORT		portb
++#define VO_GPIO_PWM_INDEX		4
++#define VO_GPIO_PWM_ACTIVE		GPIO_ACTIVE_HIGH
++#define VO_GPIO_POWER_CT_PORT	portb
++#define VO_GPIO_POWER_CT_INDEX	3
++#define VO_GPIO_POWER_CT_ACTIVE	GPIO_ACTIVE_HIGH
++
+diff --git a/include/imgs.h b/include/imgs.h
+new file mode 100644
+index 00000000..3b8e0730
+--- /dev/null
++++ b/include/imgs.h
+@@ -0,0 +1,4 @@
++char imgs[][255] = {"boot.sd",
++"rootfs.sd",
++"data.sd",
++};
+\ No newline at end of file
+-- 
+2.25.1
+
