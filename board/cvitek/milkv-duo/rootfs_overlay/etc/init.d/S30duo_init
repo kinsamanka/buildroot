@@ -1,6 +1,6 @@
 #!/bin/sh -e
 
-CONFIG=/etc/usb.conf
+CONFIG=/etc/milkv-duo
 
 source $CONFIG
 

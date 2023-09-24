@@ -1,0 +1,43 @@
+#!/bin/sh -e
+
+CONFIG=/etc/milkv-duo.conf
+
+source $CONFIG
+
+setup_gpio() {
+    if [ ! -d /sys/class/gpio/gpio${LED_GPIO} ]; then
+        echo ${LED_GPIO} > /sys/class/gpio/export
+    fi
+    echo out > /sys/class/gpio/gpio${LED_GPIO}/direction
+}
+
+blink() {
+    while true; do
+        echo 0 > /sys/class/gpio/gpio${LED_GPIO}/value
+        sleep 1
+        echo 1 > /sys/class/gpio/gpio${LED_GPIO}/value
+        sleep 0.2
+    done
+}
+
+kill_blink() {
+    if [ -f /var/run/blink.pid ]; then
+        kill $(cat /var/run/blink.pid)
+    fi
+}
+
+case "$1" in
+    start)
+        kill_blink
+        setup_gpio
+        blink &
+        echo $! > /var/run/blink.pid
+        ;;
+    stop)
+        kill_blink
+        echo 0 > /sys/class/gpio/gpio${LED_GPIO}/value
+        ;;
+    *)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+esac
