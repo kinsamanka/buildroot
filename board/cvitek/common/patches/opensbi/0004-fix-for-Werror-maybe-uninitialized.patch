@@ -1,0 +1,25 @@
+From 8f16af1a57b67da8d2e335c8e8b6ea9c0cff8166 Mon Sep 17 00:00:00 2001
+From: GP Orcullo <kinsamanka@gmail.com>
+Date: Tue, 26 Sep 2023 10:03:26 +0800
+Subject: [PATCH 1/1] fix for [-Werror=maybe-uninitialized]
+
+---
+ lib/utils/reset/fdt_reset_thead.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/utils/reset/fdt_reset_thead.c b/lib/utils/reset/fdt_reset_thead.c
+index 95f8c369ce19..c75776a90a36 100644
+--- a/lib/utils/reset/fdt_reset_thead.c
++++ b/lib/utils/reset/fdt_reset_thead.c
+@@ -62,7 +62,7 @@ static int thead_reset_init(void *fdt, int nodeoff,
+ 	void *p;
+ 	const fdt64_t *val;
+ 	const fdt32_t *val_w;
+-	int len, i, cnt;
++	int len, i, cnt = 0;
+ 	u32 t, tmp = 0;
+ 
+ 	/* Prepare clone csrs */
+-- 
+2.41.0
+

@@ -1,0 +1,25 @@
+From 297ad68545a44e59f7efa355cc7649535588cca7 Mon Sep 17 00:00:00 2001
+From: GP Orcullo <kinsamanka@gmail.com>
+Date: Tue, 26 Sep 2023 09:59:49 +0800
+Subject: [PATCH 1/1] fix for RISC-V ISA updates introduced from 12.x
+
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index eeffe6bad04c..0a7c7ab0a367 100644
+--- a/Makefile
++++ b/Makefile
+@@ -157,7 +157,7 @@ ifndef PLATFORM_RISCV_ABI
+ endif
+ ifndef PLATFORM_RISCV_ISA
+   ifneq ($(PLATFORM_RISCV_TOOLCHAIN_DEFAULT), 1)
+-    PLATFORM_RISCV_ISA = rv$(PLATFORM_RISCV_XLEN)imafdc
++    PLATFORM_RISCV_ISA = rv$(PLATFORM_RISCV_XLEN)imafdc_zicsr_zifencei
+   else
+     PLATFORM_RISCV_ISA = $(OPENSBI_CC_ISA)
+   endif
+-- 
+2.41.0
+

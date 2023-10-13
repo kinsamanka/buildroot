@@ -1,7 +1,7 @@
 Buildroot for MilkV Duo board
 =============================
 
-This Buildroot generates all components from scratch, including the RiscV cross-compiler, for the MilkV Duo board.
+This Buildroot is for the MilkV Duo board and uses the standard gcc cross-compiler without using the RISC-V RVV extensions.
 
 ###  Getting the sources
 
