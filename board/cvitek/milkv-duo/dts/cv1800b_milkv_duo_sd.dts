@@ -10,6 +10,8 @@
 
 &uart3 {
 	status = "okay";
+	linux,rs485-enabled-at-boot-time;
+	rs485-rts-active-low;
 };
 
 &uart4 {
