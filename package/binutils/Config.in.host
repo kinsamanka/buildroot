@@ -12,7 +12,6 @@ choice
 	prompt "Binutils Version"
 	default BR2_BINUTILS_VERSION_2_40_X if !BR2_arc
 	default BR2_BINUTILS_VERSION_ARC if BR2_arc
-	default BR2_BINUTILS_VERSION_RISCV if BR2_riscv
 	help
 	  Select the version of binutils you wish to use.
 
@@ -31,16 +30,11 @@ config BR2_BINUTILS_VERSION_ARC
 	bool "binutils arc (2.34.50)"
 	depends on BR2_arc
 
-config BR2_BINUTILS_VERSION_RISCV
-	bool "binutils rvv-0.7.1 (2.32)"
-	depends on BR2_riscv
-
 endchoice
 
 config BR2_BINUTILS_VERSION
 	string
 	default "arc-2020.09-release"	if BR2_BINUTILS_VERSION_ARC
-	default "rvv-0.7.1"	if BR2_BINUTILS_VERSION_RISCV
 	default "2.39"		if BR2_BINUTILS_VERSION_2_39_X
 	default "2.40"		if BR2_BINUTILS_VERSION_2_40_X
 	default "2.41"		if BR2_BINUTILS_VERSION_2_41_X

@@ -13,16 +13,10 @@ GCC_VERSION = $(call qstrip,$(BR2_GCC_VERSION))
 ifeq ($(BR2_GCC_VERSION_ARC),y)
 GCC_SITE = $(call github,foss-for-synopsys-dwc-arc-processors,gcc,$(GCC_VERSION))
 GCC_SOURCE = gcc-$(GCC_VERSION).tar.gz
+else
+GCC_SITE = $(BR2_GNU_MIRROR:/=)/gcc/gcc-$(GCC_VERSION)
+GCC_SOURCE = gcc-$(GCC_VERSION).tar.xz
 endif
-
-ifeq ($(BR2_GCC_VERSION_RISCV),y)
-GCC_VERSION = 147c28df9d08a86a51a4b4e590a9d18a3361b88a
-GCC_SITE = https://github.com/riscv-collab/riscv-gcc/archive
-GCC_SOURCE = $(GCC_VERSION).tar.gz
-endif
-
-GCC_SITE ?= $(BR2_GNU_MIRROR:/=)/gcc/gcc-$(GCC_VERSION)
-GCC_SOURCE ?= gcc-$(GCC_VERSION).tar.xz
 
 #
 # Xtensa special hook

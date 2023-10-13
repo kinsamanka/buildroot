@@ -21,11 +21,6 @@ BINUTILS_SOURCE = binutils-gdb-$(BINUTILS_VERSION).tar.gz
 BINUTILS_FROM_GIT = y
 endif
 
-ifeq ($(BR2_riscv),y)
-BINUTILS_SITE = https://github.com/riscvarchive/riscv-binutils-gdb/archive/refs/heads
-BINUTILS_SOURCE = $(BINUTILS_VERSION).tar.gz
-endif
-
 BINUTILS_SITE ?= $(BR2_GNU_MIRROR)/binutils
 BINUTILS_SOURCE ?= binutils-$(BINUTILS_VERSION).tar.xz
 BINUTILS_EXTRA_CONFIG_OPTIONS = $(call qstrip,$(BR2_BINUTILS_EXTRA_CONFIG_OPTIONS))
