@@ -6,6 +6,7 @@ iface eth0 inet dhcp
   pre-up /etc/network/nfs_check
   wait-delay 15
   hostname $(hostname)
+  hwaddress ether 22:C6:FB:24:E1:48
 
 auto usb0
 iface usb0 inet static
