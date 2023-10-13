@@ -1,0 +1,48 @@
+From d2af52440a315ab2269f21806b0af77924811a8b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Ilpo=20J=C3=A4rvinen?= <ilpo.jarvinen@linux.intel.com>
+Date: Tue, 26 Apr 2022 15:24:40 +0300
+Subject: [PATCH 5/5] serial: 8250_dwlib: Implement SW half duplex support
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This patch enables support for SW half-duplex mode using em485.
+
+Cc: Eric Tremblay <etremblay@distech-controls.com>
+Cc: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Tested-by: Vicente Bergas <vicencb@gmail.com>
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+Link: https://lore.kernel.org/r/20220426122448.38997-3-ilpo.jarvinen@linux.intel.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/tty/serial/8250/8250_dwlib.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/tty/serial/8250/8250_dwlib.c b/drivers/tty/serial/8250/8250_dwlib.c
+index 6d6a78eead3e..12aa673bc323 100644
+--- a/drivers/tty/serial/8250/8250_dwlib.c
++++ b/drivers/tty/serial/8250/8250_dwlib.c
+@@ -82,6 +82,11 @@ void dw8250_setup_port(struct uart_port *p)
+ 	struct uart_8250_port *up = up_to_u8250p(p);
+ 	u32 reg;
+ 
++	p->rs485_config = serial8250_em485_config;
++	up->rs485_start_tx = serial8250_em485_start_tx;
++	up->rs485_stop_tx = serial8250_em485_stop_tx;
++	up->capabilities |= UART_CAP_NOTEMT;
++
+ 	/*
+ 	 * If the Component Version Register returns zero, we know that
+ 	 * ADDITIONAL_FEATURES are not enabled. No need to go any further.
+@@ -114,7 +119,7 @@ void dw8250_setup_port(struct uart_port *p)
+ 		p->type = PORT_16550A;
+ 		p->flags |= UPF_FIXED_TYPE;
+ 		p->fifosize = DW_UART_CPR_FIFO_SIZE(reg);
+-		up->capabilities = UART_CAP_FIFO;
++		up->capabilities = UART_CAP_FIFO | UART_CAP_NOTEMT;
+ 	}
+ 
+ 	if (reg & DW_UART_CPR_AFCE_MODE)
+-- 
+2.39.2
+

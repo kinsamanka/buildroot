@@ -1,0 +1,203 @@
+From 2b54f1f331f2efed5e8c1b485e3deb4a6c1e2333 Mon Sep 17 00:00:00 2001
+From: Eric Tremblay <etremblay@distech-controls.com>
+Date: Wed, 30 Mar 2022 12:46:40 +0200
+Subject: [PATCH 2/5] serial: 8250: Handle UART without interrupt on TEMT using
+ em485
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Introduce the UART_CAP_NOTEMT capability. The capability indicates that
+the UART doesn't have an interrupt available on TEMT.
+
+In the case where the device does not support it, we calculate the
+maximum time it could take for the transmitter to empty the
+shift register. When we get in the situation where we get the
+THRE interrupt, we check if the TEMT bit is set. If it's not, we start
+the a timer and recall __stop_tx() after the delay.
+
+The transmit sequence is a bit modified when the capability is set. The
+new timer is used between the last interrupt(THRE) and a potential
+stop_tx timer.
+
+Signed-off-by: Giulio Benetti <giulio.benetti@micronovasrl.com>
+[moved to use added UART_CAP_TEMT]
+Signed-off-by: Heiko Stuebner <heiko.stuebner@theobroma-systems.com>
+[moved to use added UART_CAP_NOTEMT, improve timeout]
+Signed-off-by: Eric Tremblay <etremblay@distech-controls.com>
+[rebased to v5.17, making use of tty_get_frame_size]
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Link: https://lore.kernel.org/r/20220330104642.229507-2-u.kleine-koenig@pengutronix.de
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/tty/serial/8250/8250.h      |  1 +
+ drivers/tty/serial/8250/8250_port.c | 76 ++++++++++++++++++++++++++++-
+ include/linux/serial_8250.h         |  2 +
+ 3 files changed, 77 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/tty/serial/8250/8250.h b/drivers/tty/serial/8250/8250.h
+index 52bb21205bb6..15aedc90fd70 100644
+--- a/drivers/tty/serial/8250/8250.h
++++ b/drivers/tty/serial/8250/8250.h
+@@ -82,6 +82,7 @@ struct serial8250_config {
+ #define UART_CAP_MINI	(1 << 17)	/* Mini UART on BCM283X family lacks:
+ 					 * STOP PARITY EPAR SPAR WLEN5 WLEN6
+ 					 */
++#define UART_CAP_NOTEMT	BIT(18)	/* UART without interrupt on TEMT available */
+ 
+ #define UART_BUG_QUOT	(1 << 0)	/* UART has buggy quot LSB */
+ #define UART_BUG_TXEN	(1 << 1)	/* UART has buggy TX IIR status */
+diff --git a/drivers/tty/serial/8250/8250_port.c b/drivers/tty/serial/8250/8250_port.c
+index b0af13074cd3..b4d954b5858c 100644
+--- a/drivers/tty/serial/8250/8250_port.c
++++ b/drivers/tty/serial/8250/8250_port.c
+@@ -558,8 +558,21 @@ static void serial8250_clear_fifos(struct uart_8250_port *p)
+ 	}
+ }
+ 
++static inline void serial8250_em485_update_temt_delay(struct uart_8250_port *p,
++			unsigned int cflag, unsigned int baud)
++{
++	unsigned int bits;
++
++	if (!p->em485)
++		return;
++
++	bits = tty_get_frame_size(cflag);
++	p->em485->no_temt_delay = DIV_ROUND_UP(bits * NSEC_PER_SEC, baud);
++}
++
+ static enum hrtimer_restart serial8250_em485_handle_start_tx(struct hrtimer *t);
+ static enum hrtimer_restart serial8250_em485_handle_stop_tx(struct hrtimer *t);
++static enum hrtimer_restart serial8250_em485_handle_no_temt(struct hrtimer *t);
+ 
+ void serial8250_clear_and_reinit_fifos(struct uart_8250_port *p)
+ {
+@@ -618,6 +631,16 @@ static int serial8250_em485_init(struct uart_8250_port *p)
+ 		     HRTIMER_MODE_REL);
+ 	hrtimer_init(&p->em485->start_tx_timer, CLOCK_MONOTONIC,
+ 		     HRTIMER_MODE_REL);
++
++	if (p->capabilities & UART_CAP_NOTEMT) {
++		struct tty_struct *tty = p->port.state->port.tty;
++
++		serial8250_em485_update_temt_delay(p, tty->termios.c_cflag,
++						   tty_get_baud_rate(tty));
++		hrtimer_init(&p->em485->no_temt_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
++		p->em485->no_temt_timer.function = &serial8250_em485_handle_no_temt;
++	}
++
+ 	p->em485->stop_tx_timer.function = &serial8250_em485_handle_stop_tx;
+ 	p->em485->start_tx_timer.function = &serial8250_em485_handle_start_tx;
+ 	p->em485->port = p;
+@@ -649,6 +672,7 @@ void serial8250_em485_destroy(struct uart_8250_port *p)
+ 
+ 	hrtimer_cancel(&p->em485->start_tx_timer);
+ 	hrtimer_cancel(&p->em485->stop_tx_timer);
++	hrtimer_cancel(&p->em485->no_temt_timer);
+ 
+ 	kfree(p->em485);
+ 	p->em485 = NULL;
+@@ -1494,6 +1518,11 @@ static void start_hrtimer_ms(struct hrtimer *hrt, unsigned long msec)
+ 	hrtimer_start(hrt, t, HRTIMER_MODE_REL);
+ }
+ 
++static void start_hrtimer_ns(struct hrtimer *hrt, unsigned long nsec)
++{
++	hrtimer_start(hrt, ns_to_ktime(nsec), HRTIMER_MODE_REL);
++}
++
+ static void __stop_tx_rs485(struct uart_8250_port *p)
+ {
+ 	struct uart_8250_em485 *em485 = p->em485;
+@@ -1525,14 +1554,33 @@ static inline void __stop_tx(struct uart_8250_port *p)
+ 
+ 	if (em485) {
+ 		unsigned char lsr = serial_in(p, UART_LSR);
++
++		p->lsr_saved_flags |= lsr & LSR_SAVE_FLAGS;
++
+ 		/*
+-		 * To provide required timeing and allow FIFO transfer,
++		 * To provide required timing and allow FIFO transfer,
+ 		 * __stop_tx_rs485() must be called only when both FIFO and
+ 		 * shift register are empty. It is for device driver to enable
+ 		 * interrupt on TEMT.
+ 		 */
+-		if ((lsr & BOTH_EMPTY) != BOTH_EMPTY)
++		if ((lsr & BOTH_EMPTY) != BOTH_EMPTY) {
++			if (!(p->capabilities & UART_CAP_NOTEMT))
++				/* __stop_tx will be called again once TEMT triggers */
++				return;
++
++			if (!(lsr & UART_LSR_THRE))
++				/* __stop_tx will be called again once THRE triggers */
++				return;
++
++			/*
++			 * On devices with no TEMT interrupt available, start
++			 * a timer for a byte time. The timer will recall
++			 * __stop_tx().
++			 */
++			em485->active_timer = &em485->no_temt_timer;
++			start_hrtimer_ns(&em485->no_temt_timer, em485->no_temt_delay);
+ 			return;
++		}
+ 
+ 		__stop_tx_rs485(p);
+ 	}
+@@ -1631,6 +1679,27 @@ static inline void start_tx_rs485(struct uart_port *port)
+ 	__start_tx(port);
+ }
+ 
++static enum hrtimer_restart serial8250_em485_handle_no_temt(struct hrtimer *t)
++{
++	struct uart_8250_em485 *em485;
++	struct uart_8250_port *p;
++	unsigned long flags;
++
++	em485 = container_of(t, struct uart_8250_em485, no_temt_timer);
++	p = em485->port;
++
++	serial8250_rpm_get(p);
++	spin_lock_irqsave(&p->port.lock, flags);
++	if (em485->active_timer == &em485->no_temt_timer) {
++		em485->active_timer = NULL;
++		__stop_tx(p);
++	}
++
++	spin_unlock_irqrestore(&p->port.lock, flags);
++	serial8250_rpm_put(p);
++	return HRTIMER_NORESTART;
++}
++
+ static enum hrtimer_restart serial8250_em485_handle_start_tx(struct hrtimer *t)
+ {
+ 	struct uart_8250_em485 *em485;
+@@ -2792,6 +2861,9 @@ serial8250_do_set_termios(struct uart_port *port, struct ktermios *termios,
+ 
+ 	serial8250_set_divisor(port, baud, quot, frac);
+ 
++	if (up->capabilities & UART_CAP_NOTEMT)
++		serial8250_em485_update_temt_delay(up, termios->c_cflag, baud);
++
+ 	/*
+ 	 * LCR DLAB must be set to enable 64-byte FIFO mode. If the FCR
+ 	 * is written without DLAB set, this mode will be disabled.
+diff --git a/include/linux/serial_8250.h b/include/linux/serial_8250.h
+index 2b70f736b091..3199f0efee5b 100644
+--- a/include/linux/serial_8250.h
++++ b/include/linux/serial_8250.h
+@@ -79,7 +79,9 @@ struct uart_8250_ops {
+ struct uart_8250_em485 {
+ 	struct hrtimer		start_tx_timer; /* "rs485 start tx" timer */
+ 	struct hrtimer		stop_tx_timer;  /* "rs485 stop tx" timer */
++	struct hrtimer		no_temt_timer;  /* "rs485 no TEMT interrupt" timer */
+ 	struct hrtimer		*active_timer;  /* pointer to active timer */
++	unsigned long		no_temt_delay;  /* Delay for no_temt_timer */
+ 	struct uart_8250_port	*port;          /* for hrtimer callbacks */
+ 	unsigned int		tx_stopped:1;	/* tx is currently stopped */
+ };
+-- 
+2.39.2
+

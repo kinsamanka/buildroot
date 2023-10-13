@@ -1,0 +1,108 @@
+From e60ef37c01d0b12aeb5c7f6ee5748685f7a725da Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Ilpo=20J=C3=A4rvinen?= <ilpo.jarvinen@linux.intel.com>
+Date: Mon, 25 Apr 2022 17:34:00 +0300
+Subject: [PATCH 4/5] serial: 8250: Handle UART without interrupt on TEMT
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add UART_CAP_NOTEMT for UARTs that lack interrupt on TEMT but want to
+use em485. Em485 framework needs to ensure not only FIFO is empty but
+also that tx shift register is empty.
+
+This approach uses Uwe Kleine-König's suggestion on simply
+using/incrementing stop_tx timer rather than adding another timer. When
+UART_CAP_NOTEMT is set and THRE is present w/o TEMT, stop tx timer is
+reused to wait for the emptying of the shift register.
+
+This change does not add the UART_CAP_NOTEMT define as it already exist
+but is currently no-op. See 7a107b2c6b81 (Revert "serial: 8250: Handle
+UART without interrupt on TEMT using em485") for further details.
+
+Vicente Bergas reported that RTS is deasserted roughly one bit too
+early losing stop bit tx. To address this problem, stop_delay now
+accounts for one extra bit using rough formula /7 (assumes worst-case
+of 2+5 bits). I suspect this glitch had to do with when THRE is getting
+asserted. If FIFO is emptied already during the tx of the stop bit,
+perhaps it leads to HW asserting THRE early for the normal frame time
+formula to work accurately.
+
+Suggested-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Cc: Eric Tremblay <etremblay@distech-controls.com>
+Tested-by: Vicente Bergas <vicencb@gmail.com>
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+Link: https://lore.kernel.org/r/20220425143410.12703-4-ilpo.jarvinen@linux.intel.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/tty/serial/8250/8250_port.c | 35 +++++++++++++++++++++--------
+ 1 file changed, 26 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/tty/serial/8250/8250_port.c b/drivers/tty/serial/8250/8250_port.c
+index b0af13074cd3..98cfea518421 100644
+--- a/drivers/tty/serial/8250/8250_port.c
++++ b/drivers/tty/serial/8250/8250_port.c
+@@ -1494,18 +1494,19 @@ static void start_hrtimer_ms(struct hrtimer *hrt, unsigned long msec)
+ 	hrtimer_start(hrt, t, HRTIMER_MODE_REL);
+ }
+ 
+-static void __stop_tx_rs485(struct uart_8250_port *p)
++static void __stop_tx_rs485(struct uart_8250_port *p, u64 stop_delay)
+ {
+ 	struct uart_8250_em485 *em485 = p->em485;
+ 
++	stop_delay += (u64)p->port.rs485.delay_rts_after_send * NSEC_PER_MSEC;
++
+ 	/*
+ 	 * rs485_stop_tx() is going to set RTS according to config
+ 	 * AND flush RX FIFO if required.
+ 	 */
+-	if (p->port.rs485.delay_rts_after_send > 0) {
++	if (stop_delay > 0) {
+ 		em485->active_timer = &em485->stop_tx_timer;
+-		start_hrtimer_ms(&em485->stop_tx_timer,
+-				   p->port.rs485.delay_rts_after_send);
++		hrtimer_start(&em485->stop_tx_timer, ns_to_ktime(stop_delay), HRTIMER_MODE_REL);
+ 	} else {
+ 		p->rs485_stop_tx(p);
+ 		em485->active_timer = NULL;
+@@ -1525,16 +1526,32 @@ static inline void __stop_tx(struct uart_8250_port *p)
+ 
+ 	if (em485) {
+ 		unsigned char lsr = serial_in(p, UART_LSR);
++		u64 stop_delay = 0;
++
++		if (!(lsr & UART_LSR_THRE))
++			return;
+ 		/*
+ 		 * To provide required timeing and allow FIFO transfer,
+ 		 * __stop_tx_rs485() must be called only when both FIFO and
+-		 * shift register are empty. It is for device driver to enable
+-		 * interrupt on TEMT.
++		 * shift register are empty. The device driver should either
++		 * enable interrupt on TEMT or set UART_CAP_NOTEMT that will
++		 * enlarge stop_tx_timer by the tx time of one frame to cover
++		 * for emptying of the shift register.
+ 		 */
+-		if ((lsr & BOTH_EMPTY) != BOTH_EMPTY)
+-			return;
++		if (!(lsr & UART_LSR_TEMT)) {
++			if (!(p->capabilities & UART_CAP_NOTEMT))
++				return;
++			/*
++			 * RTS might get deasserted too early with the normal
++			 * frame timing formula. It seems to suggest THRE might
++			 * get asserted already during tx of the stop bit
++			 * rather than after it is fully sent.
++			 * Roughly estimate 1 extra bit here with / 7.
++			 */
++			stop_delay = p->port.frame_time + DIV_ROUND_UP(p->port.frame_time, 7);
++		}
+ 
+-		__stop_tx_rs485(p);
++		__stop_tx_rs485(p, stop_delay);
+ 	}
+ 	__do_stop_tx(p);
+ }
+-- 
+2.39.2
+
