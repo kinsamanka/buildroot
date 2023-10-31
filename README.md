@@ -37,11 +37,13 @@ If the build is successful, the ```images``` folder will contain the following f
     milkv-duo_sdcard.img.gz
     milkv-duo_sdcard.img
     
-### Save the cross-compiler
+### Building the cross-compiler
 
-To save time on the next builds, it is best to save the generated cross-compiler.
-The following command will gather and compress the required files.
+To save time when creating future builds, it is best to create and re-use the cross-compiler.
+The following command will create the compiler.
 
+    $ make O=$(pwd)/sdk -C milkv-buildroot milkv_duo_toolchain_defconfig
+    $ cd sdk
     $ make sdk
 
 The resulting packaged cross-compiler: ```images/riscv64-buildroot-linux-musl_sdk-buildroot.tar.gz```
@@ -50,11 +52,20 @@ Transfer this file to the root of the Buildroot directory:
 
     $ mv images/riscv64-buildroot-linux-musl_sdk-buildroot.tar.gz ../milkv-buildroot
 
-### Build using the packaged cross-compiler
+### Using the packaged cross-compiler
 
-    $ make O=$(pwd)/build -C milkv-buildroot milkv_duo_external_toolchain_defconfig
-    $ cd build
-    $ make
+Edit the buildroot ```.config``` file, change the following entries:
+
+```diff
+-BR2_TOOLCHAIN_BUILDROOT_MUSL=y
+-BR2_KERNEL_HEADERS_5_10=y
++BR2_TOOLCHAIN_EXTERNAL=y
++BR2_TOOLCHAIN_EXTERNAL_DOWNLOAD=y
++BR2_TOOLCHAIN_EXTERNAL_URL="file://$(TOPDIR)/riscv64-buildroot-linux-musl_sdk-buildroot.tar.gz"
++BR2_TOOLCHAIN_EXTERNAL_GCC_12=y
++BR2_TOOLCHAIN_EXTERNAL_HEADERS_5_10=y
++BR2_TOOLCHAIN_EXTERNAL_CUSTOM_MUSL=y
+```
 
 ### Notes
 
