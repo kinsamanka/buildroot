@@ -1,0 +1,187 @@
+From 09796f0dabaa613a5780a88008a7c2a0898f7a94 Mon Sep 17 00:00:00 2001
+From: GP Orcullo <kinsamanka@gmail.com>
+Date: Mon, 6 Nov 2023 21:06:23 +0800
+Subject: [PATCH 4/8] sophgo: update Milk-V Duo device tree
+
+---
+ .../boot/dts/sophgo/cv1800b-milkv-duo.dts     |   5 +
+ arch/riscv/boot/dts/sophgo/cv1800b.dtsi       | 141 +++++++++++++++++-
+ 2 files changed, 145 insertions(+), 1 deletion(-)
+
+diff --git a/arch/riscv/boot/dts/sophgo/cv1800b-milkv-duo.dts b/arch/riscv/boot/dts/sophgo/cv1800b-milkv-duo.dts
+index 3af9e34b3bc7..37f216e5c437 100644
+--- a/arch/riscv/boot/dts/sophgo/cv1800b-milkv-duo.dts
++++ b/arch/riscv/boot/dts/sophgo/cv1800b-milkv-duo.dts
+@@ -12,6 +12,11 @@ / {
+ 	compatible = "milkv,duo", "sophgo,cv1800b";
+ 
+ 	aliases {
++		ethernet0 = &emac;
++		gpio0 = &gpio0;
++		gpio1 = &gpio1;
++		gpio2 = &gpio2;
++		gpio3 = &gpio3;
+ 		serial0 = &uart0;
+ 		serial1 = &uart1;
+ 		serial2 = &uart2;
+diff --git a/arch/riscv/boot/dts/sophgo/cv1800b.dtsi b/arch/riscv/boot/dts/sophgo/cv1800b.dtsi
+index df40e87ee063..8282523ae56c 100644
+--- a/arch/riscv/boot/dts/sophgo/cv1800b.dtsi
++++ b/arch/riscv/boot/dts/sophgo/cv1800b.dtsi
+@@ -34,7 +34,6 @@ cpu0: cpu@0 {
+ 			cpu0_intc: interrupt-controller {
+ 				compatible = "riscv,cpu-intc";
+ 				interrupt-controller;
+-				#address-cells = <0>;
+ 				#interrupt-cells = <1>;
+ 			};
+ 		};
+@@ -119,5 +118,145 @@ clint: timer@74000000 {
+ 			reg = <0x74000000 0x10000>;
+ 			interrupts-extended = <&cpu0_intc 3>, <&cpu0_intc 7>;
+ 		};
++
++		gpio0: gpio@3020000 {
++			compatible = "snps,dw-apb-gpio";
++			reg = <0x3020000 0x1000>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			porta: gpio-controller@0 {
++				compatible = "snps,dw-apb-gpio-port";
++				gpio-controller;
++				#gpio-cells = <2>;
++				ngpios = <32>;
++				reg = <0>;
++				interrupt-controller;
++				#interrupt-cells = <2>;
++				interrupts = <60 IRQ_TYPE_LEVEL_HIGH>;
++			};
++		};
++
++		gpio1: gpio@3021000 {
++			compatible = "snps,dw-apb-gpio";
++			reg = <0x3021000 0x1000>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			portb: gpio-controller@0 {
++				compatible = "snps,dw-apb-gpio-port";
++				gpio-controller;
++				#gpio-cells = <2>;
++				ngpios = <32>;
++				reg = <0>;
++				interrupt-controller;
++				#interrupt-cells = <2>;
++				interrupts = <61 IRQ_TYPE_LEVEL_HIGH>;
++			};
++		};
++
++		gpio2: gpio@3022000 {
++			compatible = "snps,dw-apb-gpio";
++			reg = <0x3022000 0x1000>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			portc: gpio-controller@0 {
++				compatible = "snps,dw-apb-gpio-port";
++				gpio-controller;
++				#gpio-cells = <2>;
++				ngpios = <32>;
++				reg = <0>;
++				interrupt-controller;
++				#interrupt-cells = <2>;
++				interrupts = <62 IRQ_TYPE_LEVEL_HIGH>;
++			};
++		};
++
++		gpio3: gpio@3023000 {
++			compatible = "snps,dw-apb-gpio";
++			reg = <0x3023000 0x1000>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			portd: gpio-controller@0 {
++				compatible = "snps,dw-apb-gpio-port";
++				gpio-controller;
++				#gpio-cells = <2>;
++				ngpios = <32>;
++				reg = <0>;
++				interrupt-controller;
++				#interrupt-cells = <2>;
++				interrupts = <63 IRQ_TYPE_LEVEL_HIGH>;
++			};
++		};
++
++		clk_csr: clk_csr {
++			clock-output-names = "eth_csrclk";
++			clock-frequency = <250000000>;
++			#clock-cells = <0>;
++			compatible = "fixed-clock";
++		};
++
++		clk_ptp: clk_ptp {
++			clock-output-names = "eth_ptpclk";
++			clock-frequency = <50000000>;
++			#clock-cells = <0>;
++			compatible = "fixed-clock";
++		};
++
++		emac: ethernet@4070000 {
++			compatible = "sophgo,ethernet";
++			reg = <0x4070000 0x10000>;
++			clock-names = "stmmaceth\0ptp_ref";
++			clocks = <&clk_csr &clk_ptp>;
++			tx-fifo-depth = <8192>;
++			rx-fifo-depth = <8192>;
++			snps,multicast-filter-bins = <0>;
++			snps,perfect-filter-entries = <1>;
++			snps,txpbl = <8>;
++			snps,rxpbl = <8>;
++			snps,aal;
++			snps,axi-config = <9>;
++			snps,mtl-rx-config = <10>;
++			snps,mtl-tx-config = <11>;
++			phy-mode = "rmii";
++			interrupt-names = "macirq";
++			interrupts = <31 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-parent = <&plic>;
++		};
++
++		mmc0: mmc@4310000 {
++			compatible = "sophgo,cv180x-sd";
++			reg = <0x4310000 0x1000>;
++			reg-names = "core_mem";
++			bus-width = <4>;
++			cap-sd-highspeed;
++			cap-mmc-highspeed;
++			sd-uhs-sdr12;
++			sd-uhs-sdr25;
++			sd-uhs-sdr50;
++			sd-uhs-sdr104;
++			no-sdio;
++			no-mmc;
++			src-frequency = <375000000>;
++			min-frequency = <400000>;
++			max-frequency = <200000000>;
++			64_addressing;
++			reset_tx_rx_phy;
++			reset-names = "sdhci";
++			pll_index = <6>;
++			pll_reg = <0x3002070>;
++			non-removable;
++			interrupts = <36 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-parent = <&plic>;
++			no-1-8-v;
++		};
++
++		restart: restart-controller@5025000 {
++			compatible = "sophgo,restart";
++			reg = <0x05025000 0x2000>;
++		};
++
+ 	};
+ };
+-- 
+2.39.2
+
